@@ -5,8 +5,10 @@
  * @author vampire
  */
 
-const { React, Webpack } = kettu;
-const { Filters } = Webpack;
+// Get Vendetta modules
+const vendetta = window.vendetta;
+const { React } = vendetta.metro.common;
+const { findByProps } = vendetta.metro;
 
 // Text replacement storage
 let textReplacements = [];
@@ -348,10 +350,10 @@ function SettingsPanel() {
 
 // Message send patch for text replacement
 function patchMessageSend() {
-    const MessageActions = Webpack.findByProps('sendMessage', 'editMessage');
+    const MessageActions = findByProps('sendMessage', 'editMessage');
     if (!MessageActions) return;
 
-    kettu.patcher.before('larpscript-text-replace', MessageActions, 'sendMessage', (args) => {
+    const unpatch = vendetta.patcher.before('sendMessage', MessageActions, (args) => {
         if (!isTextReplaceEnabled || textReplacements.length === 0) return;
         
         const [, message] = args;
@@ -373,14 +375,18 @@ function patchMessageSend() {
         
         message.content = content;
     });
+    
+    return unpatch;
 }
 
 // Badge and Nitro patch
 function patchBadges() {
-    const UserStore = Webpack.findByProps('getCurrentUser', 'getUser');
+    const UserStore = findByProps('getCurrentUser', 'getUser');
     if (!UserStore) return;
 
-    kettu.patcher.after('larpscript-badges', UserStore, 'getCurrentUser', (_, __, user) => {
+    const unpatches = [];
+
+    unpatches.push(vendetta.patcher.after('getCurrentUser', UserStore, (_, __, user) => {
         if (!user) return user;
 
         // Apply badge flags
@@ -415,10 +421,10 @@ function patchBadges() {
         }
 
         return user;
-    });
+    }));
 
     // Also patch getUser for profile views
-    kettu.patcher.after('larpscript-badges-getuser', UserStore, 'getUser', (args, _, user) => {
+    unpatches.push(vendetta.patcher.after('getUser', UserStore, (args, _, user) => {
         if (!user) return user;
         
         const currentUser = UserStore.getCurrentUser();
@@ -452,23 +458,24 @@ function patchBadges() {
         }
 
         return user;
-    });
+    }));
+    
+    return () => unpatches.forEach(u => u());
 }
 
 // Plugin lifecycle
+let unpatches = [];
+
 export function onLoad() {
     console.log('[LarpScript] Plugin loaded');
-    patchMessageSend();
-    patchBadges();
+    unpatches.push(patchMessageSend());
+    unpatches.push(patchBadges());
 }
 
 export function onUnload() {
     console.log('[LarpScript] Plugin unloaded');
-    kettu.patcher.unpatchAll('larpscript-text-replace');
-    kettu.patcher.unpatchAll('larpscript-badges');
-    kettu.patcher.unpatchAll('larpscript-badges-getuser');
+    unpatches.forEach(unpatch => unpatch?.());
+    unpatches = [];
 }
 
-export function getSettingsPanel() {
-    return React.createElement(SettingsPanel);
-}
+export const settings = SettingsPanel;
