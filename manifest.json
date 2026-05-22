@@ -1,0 +1,7 @@
+{
+  "name": "LarpScript",
+  "description": "Advanced text replacement and badge customization plugin",
+  "author": "vampire",
+  "version": "1.0.0",
+  "main": "main.js"
+}
